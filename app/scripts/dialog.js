@@ -186,10 +186,28 @@ function analyzeTicket(client) {
     resetButton(btn);
 
     let result = null;
-    try {
-      result = JSON.parse(response.response);
-    } catch {
-      showStatus("Analisis enviado. La nota privada se creara en el ticket.", "success");
+    const raw = response.response;
+    if (typeof raw === "object" && raw !== null) {
+      result = raw;
+    } else if (typeof raw === "string") {
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        // Maybe double-encoded JSON
+        try {
+          result = JSON.parse(JSON.parse(raw));
+        } catch {
+          showStatus("DEBUG — tipo: " + typeof raw + " | inicio: " + String(raw).substring(0, 150), "error");
+          return;
+        }
+      }
+    } else {
+      showStatus("DEBUG — response.response es " + typeof raw, "error");
+      return;
+    }
+
+    if (!result || (!result.recommendation && !result.analysis && !result.response)) {
+      showStatus("DEBUG — keys: " + Object.keys(result || {}).join(", "), "error");
       return;
     }
 
