@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Doctor Flux Pro</title>
+  <link rel="stylesheet" href="styles/style.css">
+  <script src="{{{appclient}}}"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-title">Doctor Flux Pro</div>
+      <div class="header-subtitle" id="ticketInfo">Cargando ticket...</div>
+    </div>
+
+    <!-- Secciones colapsables -->
+
+    <!-- 1. Conversaciones del ticket -->
+    <div class="section" id="sectionConversations">
+      <div class="section-header" data-toggle="conversationsList">
+        <span class="section-icon">&#9662;</span>
+        Conversaciones
+        <span class="badge" id="convCount">0</span>
+      </div>
+      <div class="section-body" id="conversationsList">
+        <div class="select-actions">
+          <a href="#" id="selectAll">Seleccionar todo</a>
+          <a href="#" id="selectNone">Ninguno</a>
+        </div>
+        <div id="convItems">
+          <div class="loading-msg">Cargando conversaciones...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Instrucciones del tecnico -->
+    <div class="section">
+      <div class="section-header" data-toggle="techNotesBody">
+        <span class="section-icon">&#9662;</span>
+        Notas del tecnico
+      </div>
+      <div class="section-body" id="techNotesBody">
+        <textarea id="techNotes" rows="3" placeholder="Contexto adicional para la IA (opcional)... Ej: el cliente ya probo reinstalar el driver"></textarea>
+      </div>
+    </div>
+
+    <!-- Boton de analisis -->
+    <div class="action-bar">
+      <button id="analyzeBtn" class="btn-primary" disabled>Analizar con IA</button>
+      <div id="statusMsg" class="status-msg"></div>
+    </div>
+
+    <!-- 3. Panel de resultados -->
+    <div class="section hidden" id="sectionResults">
+      <div class="section-header" data-toggle="resultsBody">
+        <span class="section-icon">&#9662;</span>
+        Resultado del analisis
+      </div>
+      <div class="section-body" id="resultsBody">
+
+        <!-- Recomendacion principal -->
+        <div class="result-block" id="resultRecommendation">
+          <div class="result-label">Recomendacion</div>
+          <div class="result-content" id="recommendation"></div>
+        </div>
+
+        <!-- Canned responses sugeridas -->
+        <div class="result-block hidden" id="resultCanned">
+          <div class="result-label">Respuestas sugeridas</div>
+          <div class="result-content" id="cannedResponses"></div>
+        </div>
+
+        <!-- Articulos relacionados -->
+        <div class="result-block hidden" id="resultArticles">
+          <div class="result-label">Articulos relacionados</div>
+          <div class="result-content" id="articles"></div>
+        </div>
+
+        <!-- Feedback -->
+        <div class="feedback-bar">
+          <span class="feedback-label">Fue util?</span>
+          <button class="btn-feedback" id="feedbackUp" title="Util">&#128077;</button>
+          <button class="btn-feedback" id="feedbackDown" title="No util">&#128078;</button>
+          <span class="feedback-msg" id="feedbackMsg"></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="scripts/app.js"></script>
+</body>
+</html>

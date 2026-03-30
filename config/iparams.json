@@ -1,0 +1,22 @@
+{
+  "freshdesk_domain": {
+    "display_name": "Dominio Freshdesk",
+    "description": "Tu dominio de Freshdesk (ej: bomedia.freshdesk.com)",
+    "type": "text",
+    "required": true,
+    "default_value": "bomedia.freshdesk.com"
+  },
+  "freshdesk_api_key": {
+    "display_name": "API Key de Freshdesk",
+    "description": "API Key de un agente con permisos para leer tickets",
+    "type": "text",
+    "required": true
+  },
+  "make_webhook_url": {
+    "display_name": "URL del Webhook de Make",
+    "description": "URL completa del webhook de Make.com (ej: https://hook.eu2.make.com/xxx)",
+    "type": "text",
+    "required": true,
+    "default_value": "https://hook.eu2.make.com/svfhxvy8lvpq8lykhbnm6jntidw2x3hs"
+  }
+}

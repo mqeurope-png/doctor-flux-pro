@@ -1,0 +1,34 @@
+{
+  "getTicket": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshdesk_domain %>",
+      "path": "/api/v2/tickets/<%= context.ticket_id %>",
+      "headers": {
+        "Authorization": "Basic <%= context.auth_token %>",
+        "Content-Type": "application/json"
+      }
+    }
+  },
+  "getConversations": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshdesk_domain %>",
+      "path": "/api/v2/tickets/<%= context.ticket_id %>/conversations",
+      "headers": {
+        "Authorization": "Basic <%= context.auth_token %>",
+        "Content-Type": "application/json"
+      }
+    }
+  },
+  "makeWebhook": {
+    "schema": {
+      "method": "POST",
+      "host": "<%= context.webhook_host %>",
+      "path": "<%= context.webhook_path %>",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}
