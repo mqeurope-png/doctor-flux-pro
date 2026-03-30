@@ -12,11 +12,18 @@
     "type": "text",
     "required": true
   },
-  "make_webhook_url": {
-    "display_name": "URL del Webhook de Make",
-    "description": "URL completa del webhook de Make.com (ej: https://hook.eu2.make.com/xxx)",
+  "make_webhook_host": {
+    "display_name": "Webhook Make - Host",
+    "description": "Host del webhook de Make.com (sin https://). Ej: hook.eu2.make.com",
     "type": "text",
     "required": true,
-    "default_value": "https://hook.eu2.make.com/svfhxvy8lvpq8lykhbnm6jntidw2x3hs"
+    "default_value": "hook.eu2.make.com"
+  },
+  "make_webhook_path": {
+    "display_name": "Webhook Make - Path",
+    "description": "Path del webhook de Make.com (empieza con /). Ej: /svfhxvy8lvpq8lykhbnm6jntidw2x3hs",
+    "type": "text",
+    "required": true,
+    "default_value": "/svfhxvy8lvpq8lykhbnm6jntidw2x3hs"
   }
 }

@@ -159,36 +159,23 @@ function analyzeTicket(client) {
 
   const techNotes = document.getElementById("techNotes").value.trim();
 
-  client.iparams.get().then(function (iparams) {
-    const parsed = parseWebhookUrl(iparams.make_webhook_url);
-    if (!parsed) {
-      showStatus("URL del webhook no valida. Revisa iparams.", "error");
-      resetButton(btn);
-      return;
-    }
+  const payload = {
+    ticket_id: TICKET_ID,
+    subject: document.getElementById("ticketInfo").textContent,
+    tech_notes: techNotes,
+    conversations: selectedConvs.map(function (conv) {
+      return {
+        from: conv.from_label,
+        body: conv.body_text,
+        date: conv.created_at,
+        is_description: conv.is_description
+      };
+    }),
+    source: "doctor-flux-pro"
+  };
 
-    const payload = {
-      ticket_id: TICKET_ID,
-      subject: document.getElementById("ticketInfo").textContent,
-      tech_notes: techNotes,
-      conversations: selectedConvs.map(function (conv) {
-        return {
-          from: conv.from_label,
-          body: conv.body_text,
-          date: conv.created_at,
-          is_description: conv.is_description
-        };
-      }),
-      source: "doctor-flux-pro"
-    };
-
-    return client.request.invokeTemplate("makeWebhook", {
-      context: {
-        webhook_host: parsed.host,
-        webhook_path: parsed.path
-      },
-      body: JSON.stringify(payload)
-    });
+  client.request.invokeTemplate("makeWebhook", {
+    body: JSON.stringify(payload)
   }).then(function (response) {
     if (!response) return;
     resetButton(btn);
@@ -308,21 +295,12 @@ function sendFeedback(client, type) {
     downBtn.classList.add("selected");
   }
 
-  client.iparams.get().then(function (iparams) {
-    const parsed = parseWebhookUrl(iparams.make_webhook_url);
-    if (!parsed) return;
-
-    return client.request.invokeTemplate("makeWebhook", {
-      context: {
-        webhook_host: parsed.host,
-        webhook_path: parsed.path
-      },
-      body: JSON.stringify({
-        ticket_id: TICKET_ID,
-        feedback: type,
-        source: "doctor-flux-pro-feedback"
-      })
-    });
+  client.request.invokeTemplate("makeWebhook", {
+    body: JSON.stringify({
+      ticket_id: TICKET_ID,
+      feedback: type,
+      source: "doctor-flux-pro-feedback"
+    })
   }).then(function () {
     document.getElementById("feedbackMsg").textContent = "Gracias por tu feedback";
   }).catch(function () {
@@ -331,15 +309,6 @@ function sendFeedback(client, type) {
 }
 
 // ─── Utilities ───────────────────────────────────────────────────
-function parseWebhookUrl(url) {
-  try {
-    const urlObj = new URL(url);
-    return { host: urlObj.host, path: urlObj.pathname + urlObj.search };
-  } catch {
-    return null;
-  }
-}
-
 function showStatus(text, type) {
   const el = document.getElementById("statusMsg");
   el.textContent = text;

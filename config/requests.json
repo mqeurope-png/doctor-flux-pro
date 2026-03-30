@@ -24,8 +24,8 @@
   "makeWebhook": {
     "schema": {
       "method": "POST",
-      "host": "<%= context.webhook_host %>",
-      "path": "<%= context.webhook_path %>",
+      "host": "<%= iparam.make_webhook_host %>",
+      "path": "<%= iparam.make_webhook_path %>",
       "headers": {
         "Content-Type": "application/json"
       }
