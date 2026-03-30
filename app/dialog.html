@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Doctor Flux Pro — Analisis</title>
+  <link rel="stylesheet" href="styles/dialog.css">
+  <script src="{{{appclient}}}"></script>
+</head>
+<body>
+  <div id="dialog">
+
+    <!-- Header -->
+    <div class="dlg-header">
+      <div class="dlg-header-left">
+        <span class="dlg-title">Doctor Flux Pro</span>
+        <span class="dlg-ticket" id="ticketInfo">Cargando...</span>
+      </div>
+    </div>
+
+    <!-- Conversaciones -->
+    <div class="dlg-section">
+      <div class="dlg-section-title">
+        Conversaciones
+        <span class="dlg-badge" id="convCount">0</span>
+        <span class="dlg-select-actions">
+          <a href="#" id="selectAll">Seleccionar todo</a>
+          <a href="#" id="selectNone">Ninguno</a>
+        </span>
+      </div>
+      <div class="dlg-conv-list" id="convItems">
+        <div class="dlg-loading">Cargando conversaciones...</div>
+      </div>
+    </div>
+
+    <!-- Notas del tecnico -->
+    <div class="dlg-section">
+      <div class="dlg-section-title">Notas del tecnico</div>
+      <textarea id="techNotes" rows="3" placeholder="Contexto adicional para la IA (opcional)... Ej: creo que es el tubo laser, el cliente ya probo reinstalar el driver"></textarea>
+    </div>
+
+    <!-- Boton analizar -->
+    <div class="dlg-actions">
+      <button id="analyzeBtn" class="btn-primary" disabled>Analizar con IA</button>
+      <div id="statusMsg" class="dlg-status"></div>
+    </div>
+
+    <!-- Resultados (oculto hasta que hay resultado) -->
+    <div class="dlg-results hidden" id="sectionResults">
+      <div class="dlg-divider"></div>
+
+      <div class="dlg-result-block" id="resultRecommendation">
+        <div class="dlg-result-label">Recomendacion</div>
+        <div class="dlg-result-content" id="recommendation"></div>
+      </div>
+
+      <div class="dlg-result-block hidden" id="resultCanned">
+        <div class="dlg-result-label">Respuestas sugeridas</div>
+        <div class="dlg-result-content" id="cannedResponses"></div>
+      </div>
+
+      <div class="dlg-result-block hidden" id="resultArticles">
+        <div class="dlg-result-label">Articulos relacionados</div>
+        <div class="dlg-result-content" id="articles"></div>
+      </div>
+
+      <div class="dlg-feedback">
+        <span class="dlg-feedback-label">Fue util?</span>
+        <button class="btn-feedback" id="feedbackUp" title="Util">&#128077;</button>
+        <button class="btn-feedback" id="feedbackDown" title="No util">&#128078;</button>
+        <span class="dlg-feedback-msg" id="feedbackMsg"></span>
+      </div>
+    </div>
+
+    <!-- Cerrar -->
+    <div class="dlg-footer">
+      <button id="closeBtn" class="btn-secondary">Cerrar</button>
+    </div>
+
+  </div>
+  <script src="scripts/dialog.js"></script>
+</body>
+</html>
