@@ -1,5 +1,5 @@
 /**
- * Doctor Flux Pro v3 - Sidebar
+ * Doctor Flux Pro v3b - Sidebar
  * Opens analysis dialog, then inserts selected canned responses into editor
  */
 app.initialized().then(function (client) {

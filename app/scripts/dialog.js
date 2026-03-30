@@ -1,7 +1,6 @@
 /**
- * Doctor Flux Pro v3 - Dialog (autonomous)
- * Loads ticket data, conversations, sends to Make, shows results,
- * fetches real canned responses from Freshdesk, allows inserting into editor.
+ * Doctor Flux Pro v3b - Dialog (autonomous)
+ * DEBUG VERSION — shows response details to diagnose webhook response format
  */
 
 let TICKET_ID = null;
@@ -182,32 +181,48 @@ function analyzeTicket(client) {
   client.request.invokeTemplate("makeWebhook", {
     body: JSON.stringify(payload)
   }).then(function (response) {
-    if (!response) return;
+    if (!response) {
+      showStatus("DEBUG — response es null/undefined", "error");
+      return;
+    }
     resetButton(btn);
 
+    // DEBUG: show full response structure
+    let debugKeys = "response keys: " + Object.keys(response).join(", ");
+    let raw = response.response;
+    let rawType = typeof raw;
+
+    // Try to parse the response in multiple ways
     let result = null;
-    const raw = response.response;
-    if (typeof raw === "object" && raw !== null) {
+
+    if (rawType === "object" && raw !== null) {
+      // Already an object — use directly
       result = raw;
-    } else if (typeof raw === "string") {
+    } else if (rawType === "string" && raw.length > 0) {
       try {
         result = JSON.parse(raw);
       } catch {
-        // Maybe double-encoded JSON
         try {
           result = JSON.parse(JSON.parse(raw));
         } catch {
-          showStatus("DEBUG — tipo: " + typeof raw + " | inicio: " + String(raw).substring(0, 150), "error");
+          showStatus("DEBUG — tipo:" + rawType + " | largo:" + raw.length + " | inicio:" + raw.substring(0, 200), "error");
           return;
         }
       }
     } else {
-      showStatus("DEBUG — response.response es " + typeof raw, "error");
+      // Maybe the data is somewhere else in the response
+      showStatus("DEBUG — " + debugKeys + " | response.response tipo:" + rawType + " | response:" + JSON.stringify(response).substring(0, 300), "error");
       return;
     }
 
-    if (!result || (!result.recommendation && !result.analysis && !result.response)) {
-      showStatus("DEBUG — keys: " + Object.keys(result || {}).join(", "), "error");
+    if (!result) {
+      showStatus("DEBUG — result es null despues de parsear", "error");
+      return;
+    }
+
+    let resultKeys = Object.keys(result).join(", ");
+    if (!result.recommendation && !result.analysis && !result.response) {
+      showStatus("DEBUG — result keys: " + resultKeys + " | values: " + JSON.stringify(result).substring(0, 200), "error");
       return;
     }
 
@@ -256,7 +271,6 @@ function displayResults(result, client) {
 
   renderArticles(result);
 
-  // Fetch real canned responses from Freshdesk based on titles from AI
   if (result.canned_responses && result.canned_responses.length > 0) {
     const titles = result.canned_responses.map(function (cr) {
       return typeof cr === "string" ? cr : (cr.title || "");
@@ -304,7 +318,6 @@ function fetchAllCannedPages(client, page, accumulated) {
     const items = JSON.parse(response.response);
     const all = accumulated.concat(items);
 
-    // Freshdesk returns up to 30 per page
     if (items.length >= 30) {
       return fetchAllCannedPages(client, page + 1, all);
     }
@@ -331,7 +344,6 @@ function matchCannedByTitle(allCanned, suggestedTitles) {
       } else if (crTitle.indexOf(lower) >= 0 || lower.indexOf(crTitle) >= 0) {
         score = 80;
       } else {
-        // Fuzzy: count word matches
         const words = lower.split(/\s+/);
         let hits = 0;
         words.forEach(function (w) {
@@ -378,7 +390,6 @@ function renderCannedWithCheckboxes(cannedList) {
 
   el.innerHTML = parts.join("");
 
-  // Store matched list for retrieval when inserting
   el.setAttribute("data-matched", JSON.stringify(cannedList.map(function (cr) {
     return { id: cr.id, title: cr.title, content_html: cr.content_html || cr.content || "" };
   })));
