@@ -21,9 +21,9 @@
   },
   "make_webhook_path": {
     "display_name": "Webhook Make - Path",
-    "description": "Path del webhook de Make.com (empieza con /). Ej: /svfhxvy8lvpq8lykhbnm6jntidw2x3hs",
+    "description": "Path del webhook de Make.com (empieza con /). Ej: /3tz2twjqkj2etoy74zw87ps57o2kwram",
     "type": "text",
     "required": true,
-    "default_value": "/svfhxvy8lvpq8lykhbnm6jntidw2x3hs"
+    "default_value": "/3tz2twjqkj2etoy74zw87ps57o2kwram"
   }
 }
