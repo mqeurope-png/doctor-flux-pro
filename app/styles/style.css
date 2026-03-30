@@ -44,3 +44,13 @@ body {
 .btn-primary:hover {
   background: #1557b0;
 }
+
+.sidebar-status {
+  text-align: center;
+  font-size: 12px;
+  color: #188038;
+  margin-top: 10px;
+  padding: 8px;
+  background: #e6f4ea;
+  border-radius: 6px;
+}

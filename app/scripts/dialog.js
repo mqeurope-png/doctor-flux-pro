@@ -1,10 +1,12 @@
 /**
- * Doctor Flux Pro - Dialog (autonomous)
- * Loads ticket data, conversations, sends to Make, shows results
+ * Doctor Flux Pro v3 - Dialog (autonomous)
+ * Loads ticket data, conversations, sends to Make, shows results,
+ * fetches real canned responses from Freshdesk, allows inserting into editor.
  */
 
 let TICKET_ID = null;
 let CONVERSATIONS = [];
+let AUTH_TOKEN = null;
 
 app.initialized().then(function (client) {
   loadData(client);
@@ -40,6 +42,10 @@ function bindEvents(client) {
   document.getElementById("closeBtn").addEventListener("click", function () {
     client.instance.close();
   });
+
+  document.getElementById("insertCloseBtn").addEventListener("click", function () {
+    insertAndClose(client);
+  });
 }
 
 // ─── Load ticket + conversations ─────────────────────────────────
@@ -48,6 +54,7 @@ function loadData(client) {
 
   client.iparams.get().then(function (ip) {
     iparams = ip;
+    AUTH_TOKEN = btoa(ip.freshdesk_api_key + ":X");
     return client.data.get("ticket");
   }).then(function (data) {
     const ticket = data.ticket;
@@ -55,14 +62,12 @@ function loadData(client) {
     document.getElementById("ticketInfo").textContent =
       "#" + ticket.id + " — " + truncate(ticket.subject, 60);
 
-    const authToken = btoa(iparams.freshdesk_api_key + ":X");
-
     return Promise.all([
       client.request.invokeTemplate("getTicket", {
-        context: { ticket_id: ticket.id, auth_token: authToken }
+        context: { ticket_id: ticket.id, auth_token: AUTH_TOKEN }
       }),
       client.request.invokeTemplate("getConversations", {
-        context: { ticket_id: ticket.id, auth_token: authToken }
+        context: { ticket_id: ticket.id, auth_token: AUTH_TOKEN }
       })
     ]);
   }).then(function (responses) {
@@ -188,7 +193,7 @@ function analyzeTicket(client) {
       return;
     }
 
-    displayResults(result);
+    displayResults(result, client);
     showStatus("Analisis completado", "success");
   }).catch(function (err) {
     resetButton(btn);
@@ -224,44 +229,177 @@ function resetButton(btn) {
 }
 
 // ─── Display results ─────────────────────────────────────────────
-function displayResults(result) {
+function displayResults(result, client) {
   document.getElementById("sectionResults").classList.remove("hidden");
 
   const recEl = document.getElementById("recommendation");
   recEl.textContent = result.recommendation || result.analysis || result.response ||
     (typeof result === "string" ? result : JSON.stringify(result, null, 2));
 
-  renderCannedResponses(result);
   renderArticles(result);
+
+  // Fetch real canned responses from Freshdesk based on titles from AI
+  if (result.canned_responses && result.canned_responses.length > 0) {
+    const titles = result.canned_responses.map(function (cr) {
+      return typeof cr === "string" ? cr : (cr.title || "");
+    }).filter(function (t) { return t.length > 0; });
+
+    if (titles.length > 0) {
+      fetchAndMatchCanned(client, titles);
+    } else {
+      document.getElementById("resultCanned").classList.add("hidden");
+    }
+  } else {
+    document.getElementById("resultCanned").classList.add("hidden");
+  }
 
   document.getElementById("sectionResults").scrollIntoView({ behavior: "smooth" });
 }
 
-function renderCannedResponses(result) {
+// ─── Fetch ALL canned responses from Freshdesk ──────────────────
+function fetchAndMatchCanned(client, suggestedTitles) {
   const block = document.getElementById("resultCanned");
   const el = document.getElementById("cannedResponses");
+  block.classList.remove("hidden");
+  el.innerHTML = '<div class="dlg-loading">Buscando respuestas en Freshdesk...</div>';
 
-  if (!result.canned_responses || result.canned_responses.length === 0) {
-    block.classList.add("hidden");
+  fetchAllCannedPages(client, 1, []).then(function (allCanned) {
+    const matched = matchCannedByTitle(allCanned, suggestedTitles);
+
+    if (matched.length === 0) {
+      el.innerHTML = '<div class="dlg-loading">No se encontraron canned responses coincidentes</div>';
+      document.getElementById("insertCloseBtn").classList.add("hidden");
+      return;
+    }
+
+    renderCannedWithCheckboxes(matched);
+    document.getElementById("insertCloseBtn").classList.remove("hidden");
+  }).catch(function () {
+    el.innerHTML = '<div class="dlg-loading" style="color:#d93025">Error al cargar canned responses</div>';
+  });
+}
+
+function fetchAllCannedPages(client, page, accumulated) {
+  return client.request.invokeTemplate("getCannedResponses", {
+    context: { page: String(page), auth_token: AUTH_TOKEN }
+  }).then(function (response) {
+    const items = JSON.parse(response.response);
+    const all = accumulated.concat(items);
+
+    // Freshdesk returns up to 30 per page
+    if (items.length >= 30) {
+      return fetchAllCannedPages(client, page + 1, all);
+    }
+    return all;
+  });
+}
+
+function matchCannedByTitle(allCanned, suggestedTitles) {
+  const results = [];
+  const usedIds = {};
+
+  suggestedTitles.forEach(function (suggested) {
+    const lower = suggested.toLowerCase().trim();
+    let bestMatch = null;
+    let bestScore = 0;
+
+    allCanned.forEach(function (cr) {
+      if (usedIds[cr.id]) return;
+      const crTitle = (cr.title || "").toLowerCase().trim();
+
+      let score = 0;
+      if (crTitle === lower) {
+        score = 100;
+      } else if (crTitle.indexOf(lower) >= 0 || lower.indexOf(crTitle) >= 0) {
+        score = 80;
+      } else {
+        // Fuzzy: count word matches
+        const words = lower.split(/\s+/);
+        let hits = 0;
+        words.forEach(function (w) {
+          if (w.length > 2 && crTitle.indexOf(w) >= 0) hits++;
+        });
+        score = (words.length > 0) ? Math.round((hits / words.length) * 60) : 0;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = cr;
+      }
+    });
+
+    if (bestMatch && bestScore >= 30) {
+      usedIds[bestMatch.id] = true;
+      results.push(bestMatch);
+    }
+  });
+
+  return results;
+}
+
+// ─── Render canned responses with checkboxes ─────────────────────
+function renderCannedWithCheckboxes(cannedList) {
+  const el = document.getElementById("cannedResponses");
+  const parts = [];
+
+  cannedList.forEach(function (cr, idx) {
+    const preview = truncate(stripHtml(cr.content_html || cr.content || ""), 200);
+
+    parts.push(
+      '<div class="dlg-canned-item dlg-canned-selectable">' +
+      '<div class="dlg-canned-check">' +
+      '<input type="checkbox" id="canned_' + idx + '" data-canned-idx="' + idx + '" checked>' +
+      '</div>' +
+      '<div class="dlg-canned-info">' +
+      '<div class="dlg-canned-title">' + escapeHtml(cr.title) + '</div>' +
+      '<div class="dlg-canned-body">' + escapeHtml(preview) + '</div>' +
+      '</div>' +
+      '</div>'
+    );
+  });
+
+  el.innerHTML = parts.join("");
+
+  // Store matched list for retrieval when inserting
+  el.setAttribute("data-matched", JSON.stringify(cannedList.map(function (cr) {
+    return { id: cr.id, title: cr.title, content_html: cr.content_html || cr.content || "" };
+  })));
+}
+
+// ─── Insert selected canned and close ────────────────────────────
+function insertAndClose(client) {
+  const el = document.getElementById("cannedResponses");
+  const matchedData = el.getAttribute("data-matched");
+  if (!matchedData) {
+    client.instance.close();
     return;
   }
 
-  block.classList.remove("hidden");
-  const parts = [];
-  result.canned_responses.forEach(function (cr) {
-    let item = '<div class="dlg-canned-item">';
-    if (cr.title) {
-      item += '<div class="dlg-canned-title">' + escapeHtml(cr.title) + '</div>';
+  const matched = JSON.parse(matchedData);
+  const selectedContents = [];
+
+  document.querySelectorAll("#cannedResponses input[type=checkbox]:checked").forEach(function (cb) {
+    const idx = parseInt(cb.getAttribute("data-canned-idx"), 10);
+    if (matched[idx] && matched[idx].content_html) {
+      selectedContents.push(matched[idx].content_html);
     }
-    if (cr.body || cr.content) {
-      item += '<div class="dlg-canned-body">' + escapeHtml(cr.body || cr.content) + '</div>';
-    }
-    item += '</div>';
-    parts.push(item);
   });
-  el.innerHTML = parts.join("");
+
+  if (selectedContents.length === 0) {
+    client.instance.close();
+    return;
+  }
+
+  const combined = selectedContents.join("<br><hr><br>");
+
+  client.db.set("selected_canned", { content: combined }).then(function () {
+    client.instance.close();
+  }).catch(function () {
+    client.instance.close();
+  });
 }
 
+// ─── Render articles ─────────────────────────────────────────────
 function renderArticles(result) {
   const block = document.getElementById("resultArticles");
   const el = document.getElementById("articles");

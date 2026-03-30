@@ -263,6 +263,28 @@ textarea:focus {
   margin-bottom: 8px;
 }
 
+.dlg-canned-selectable {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dlg-canned-selectable:hover {
+  background: #e8f0fe;
+}
+
+.dlg-canned-check {
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.dlg-canned-info {
+  flex: 1;
+  min-width: 0;
+}
+
 .dlg-canned-title {
   font-weight: 600;
   font-size: 13px;
@@ -336,9 +358,27 @@ textarea:focus {
 
 /* Footer */
 .dlg-footer {
-  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
   padding-top: 12px;
   border-top: 1px solid #e8eaed;
+}
+
+.btn-insert {
+  padding: 10px 20px;
+  background: #188038;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-insert:hover {
+  background: #137333;
 }
 
 .btn-secondary {

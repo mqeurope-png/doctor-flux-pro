@@ -5,7 +5,8 @@
       "requests": {
         "getTicket": {},
         "getConversations": {},
-        "makeWebhook": {}
+        "makeWebhook": {},
+        "getCannedResponses": {}
       }
     },
     "support_ticket": {

@@ -30,5 +30,16 @@
         "Content-Type": "application/json"
       }
     }
+  },
+  "getCannedResponses": {
+    "schema": {
+      "method": "GET",
+      "host": "<%= iparam.freshdesk_domain %>",
+      "path": "/api/v2/canned_responses?page=<%= context.page %>",
+      "headers": {
+        "Authorization": "Basic <%= context.auth_token %>",
+        "Content-Type": "application/json"
+      }
+    }
   }
 }
