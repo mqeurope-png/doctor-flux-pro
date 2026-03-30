@@ -197,7 +197,7 @@ function analyzeTicket() {
     const urlObj = new URL(webhookUrl);
     webhookHost = urlObj.host;
     webhookPath = urlObj.pathname + urlObj.search;
-  } catch (e) {
+  } catch (_unused) {
     showStatus("URL del webhook no valida. Revisa iparams.", "error");
     btn.disabled = false;
     btn.textContent = "Analizar con IA";
@@ -237,7 +237,7 @@ function analyzeTicket() {
     let result = null;
     try {
       result = JSON.parse(response.response);
-    } catch (e) {
+    } catch (_unused) {
       // Make responded but not JSON — analysis was sent, note will be created
       showStatus("Analisis enviado. La nota privada se creara en el ticket.", "success");
       return;
@@ -333,7 +333,7 @@ function sendFeedback(type) {
     const urlObj = new URL(webhookUrl);
     webhookHost = urlObj.host;
     webhookPath = urlObj.pathname + urlObj.search;
-  } catch (e) {
+  } catch (_unused) {
     return;
   }
 
@@ -374,7 +374,7 @@ function formatDate(dateStr) {
     const d = new Date(dateStr);
     return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" }) +
       " " + d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-  } catch (e) {
+  } catch (_unused) {
     return dateStr;
   }
 }
