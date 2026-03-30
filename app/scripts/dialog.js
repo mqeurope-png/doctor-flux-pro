@@ -205,7 +205,17 @@ function analyzeTicket(client) {
     showStatus("Analisis completado", "success");
   }).catch(function (err) {
     resetButton(btn);
-    showStatus("Error: " + (err.message || "desconocido"), "error");
+    let errMsg = "desconocido";
+    if (err && err.message) {
+      errMsg = err.message;
+    } else if (err && err.status) {
+      errMsg = "HTTP " + err.status + " - " + (err.response || "sin detalle");
+    } else if (typeof err === "string") {
+      errMsg = err;
+    } else if (err) {
+      errMsg = JSON.stringify(err);
+    }
+    showStatus("Error: " + errMsg, "error");
   });
 }
 
