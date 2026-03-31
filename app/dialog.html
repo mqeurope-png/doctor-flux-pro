@@ -2,22 +2,21 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Doctor Flux Pro — Analisis</title>
+  <title>Doctor Flux Pro v3d</title>
   <link rel="stylesheet" href="styles/dialog.css">
   <script src="{{{appclient}}}"></script>
 </head>
 <body>
   <div id="dialog">
 
-    <!-- Header -->
     <div class="dlg-header">
       <div class="dlg-header-left">
         <span class="dlg-title">Doctor Flux Pro</span>
+        <span class="dlg-version">v3d-polling</span>
         <span class="dlg-ticket" id="ticketInfo">Cargando...</span>
       </div>
     </div>
 
-    <!-- Conversaciones -->
     <div class="dlg-section">
       <div class="dlg-section-title">
         Conversaciones
@@ -32,19 +31,16 @@
       </div>
     </div>
 
-    <!-- Notas del tecnico -->
     <div class="dlg-section">
       <div class="dlg-section-title">Notas del tecnico</div>
-      <textarea id="techNotes" rows="3" placeholder="Contexto adicional para la IA (opcional)... Ej: creo que es el tubo laser, el cliente ya probo reinstalar el driver"></textarea>
+      <textarea id="techNotes" rows="3" placeholder="Contexto adicional para la IA (opcional)..."></textarea>
     </div>
 
-    <!-- Boton analizar -->
     <div class="dlg-actions">
       <button id="analyzeBtn" class="btn-primary" disabled>Analizar con IA</button>
       <div id="statusMsg" class="dlg-status"></div>
     </div>
 
-    <!-- Resultados (oculto hasta que hay resultado) -->
     <div class="dlg-results hidden" id="sectionResults">
       <div class="dlg-divider"></div>
 
@@ -71,7 +67,6 @@
       </div>
     </div>
 
-    <!-- Footer con acciones -->
     <div class="dlg-footer">
       <button id="insertCloseBtn" class="btn-insert hidden">Insertar seleccionadas y cerrar</button>
       <button id="closeBtn" class="btn-secondary">Cerrar</button>

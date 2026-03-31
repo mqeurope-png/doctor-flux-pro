@@ -29,9 +29,6 @@
       "headers": {
         "Content-Type": "application/json"
       }
-    },
-    "options": {
-      "timeout": 15000
     }
   },
   "getCannedResponses": {

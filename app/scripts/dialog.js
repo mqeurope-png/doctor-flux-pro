@@ -1,27 +1,34 @@
 /**
- * Doctor Flux Pro v3c - Dialog with POLLING
- * Sends webhook (fire & forget), then polls for new private notes.
- * No more 504 timeouts!
+ * Doctor Flux Pro v3d - Dialog with POLLING
+ * 1. Sends webhook to Make (fire & forget)
+ * 2. Polls ticket conversations every 5s looking for new Doctor IA note
+ * 3. When found, displays note content in dialog
  */
 
-var TICKET_ID = null;
-var CONVERSATIONS = [];
-var AUTH_TOKEN = null;
-var INITIAL_NOTE_IDS = {};
-var POLL_TIMER = null;
-var POLL_COUNT = 0;
-var MAX_POLLS = 24;
-var POLL_INTERVAL = 5000;
-var ANALYZE_STARTED_AT = null;
+let TICKET_ID = null;
+let CONVERSATIONS = [];
+let AUTH_TOKEN = null;
+let INITIAL_NOTE_IDS = {};
+let POLL_TIMER = null;
+let POLL_COUNT = 0;
+const MAX_POLLS = 24;
+const POLL_INTERVAL = 5000;
+let ANALYZE_TIMESTAMP = null;
 
+/* ================================================================
+   INIT
+   ================================================================ */
 app.initialized().then(function (client) {
+  showStatus("v3d-polling cargado", "success");
   loadData(client);
   bindEvents(client);
 }).catch(function () {
   showStatus("Error al inicializar la app", "error");
 });
 
-// --- Bind UI events ---
+/* ================================================================
+   BIND EVENTS
+   ================================================================ */
 function bindEvents(client) {
   document.getElementById("selectAll").addEventListener("click", function (evt) {
     evt.preventDefault();
@@ -38,11 +45,11 @@ function bindEvents(client) {
   });
 
   document.getElementById("feedbackUp").addEventListener("click", function () {
-    sendFeedback(client, "positive");
+    sendFeedback("positive");
   });
 
   document.getElementById("feedbackDown").addEventListener("click", function () {
-    sendFeedback(client, "negative");
+    sendFeedback("negative");
   });
 
   document.getElementById("closeBtn").addEventListener("click", function () {
@@ -55,13 +62,18 @@ function bindEvents(client) {
   });
 }
 
-// --- Load ticket + conversations ---
+/* ================================================================
+   LOAD TICKET DATA + CONVERSATIONS
+   ================================================================ */
 function loadData(client) {
+  let iparams = null;
+
   client.iparams.get().then(function (ip) {
+    iparams = ip;
     AUTH_TOKEN = btoa(ip.freshdesk_api_key + ":X");
     return client.data.get("ticket");
   }).then(function (data) {
-    var ticket = data.ticket;
+    const ticket = data.ticket;
     TICKET_ID = ticket.id;
     document.getElementById("ticketInfo").textContent =
       "#" + ticket.id + " — " + truncate(ticket.subject, 60);
@@ -75,10 +87,11 @@ function loadData(client) {
       })
     ]);
   }).then(function (responses) {
-    var fullTicket = JSON.parse(responses[0].response);
-    var convs = JSON.parse(responses[1].response);
+    const fullTicket = JSON.parse(responses[0].response);
+    const convs = JSON.parse(responses[1].response);
 
     CONVERSATIONS = [];
+    INITIAL_NOTE_IDS = {};
 
     if (fullTicket.description_text) {
       CONVERSATIONS.push({
@@ -91,10 +104,8 @@ function loadData(client) {
     }
 
     convs.forEach(function (conv) {
-      // Track ALL conversation IDs (including private) for polling baseline
       INITIAL_NOTE_IDS[String(conv.id)] = true;
 
-      // Only show public conversations in the UI list
       if (!conv.private) {
         CONVERSATIONS.push({
           id: conv.id,
@@ -108,6 +119,7 @@ function loadData(client) {
 
     renderConversations();
     document.getElementById("analyzeBtn").disabled = false;
+    showStatus("Listo para analizar", "success");
   }).catch(function (err) {
     document.getElementById("convItems").innerHTML =
       '<div class="dlg-loading" style="color:#d93025">Error: ' +
@@ -115,9 +127,11 @@ function loadData(client) {
   });
 }
 
-// --- Render conversations ---
+/* ================================================================
+   RENDER CONVERSATIONS
+   ================================================================ */
 function renderConversations() {
-  var container = document.getElementById("convItems");
+  const container = document.getElementById("convItems");
   document.getElementById("convCount").textContent = CONVERSATIONS.length;
 
   if (CONVERSATIONS.length === 0) {
@@ -125,14 +139,14 @@ function renderConversations() {
     return;
   }
 
-  var fragments = [];
+  const html = [];
   CONVERSATIONS.forEach(function (conv, idx) {
-    var dateStr = formatDate(conv.created_at);
-    var preview = truncate(conv.body_text, 200);
-    var descTag = conv.is_description
+    const dateStr = formatDate(conv.created_at);
+    const preview = truncate(conv.body_text, 200);
+    const descTag = conv.is_description
       ? '<span class="dlg-conv-desc-tag">Descripcion original</span>' : "";
 
-    fragments.push(
+    html.push(
       '<div class="dlg-conv-item">' +
       '<input type="checkbox" id="conv_' + idx + '" data-idx="' + idx + '" checked>' +
       '<div class="dlg-conv-body">' +
@@ -146,7 +160,7 @@ function renderConversations() {
     );
   });
 
-  container.innerHTML = fragments.join("");
+  container.innerHTML = html.join("");
 }
 
 function setAllCheckboxes(checked) {
@@ -155,24 +169,25 @@ function setAllCheckboxes(checked) {
   });
 }
 
-// --- Analyze ticket (fire webhook + start polling) ---
+/* ================================================================
+   ANALYZE TICKET — FIRE WEBHOOK + START POLLING
+   ================================================================ */
 function analyzeTicket(client) {
-  var btn = document.getElementById("analyzeBtn");
+  const btn = document.getElementById("analyzeBtn");
   btn.disabled = true;
-  btn.textContent = "Analizando...";
+  btn.textContent = "Enviando...";
   btn.classList.add("loading");
-  showStatus("Enviando al motor de IA...", "info");
 
-  var selectedConvs = getSelectedConversations();
+  const selectedConvs = getSelectedConversations();
   if (selectedConvs.length === 0) {
     showStatus("Selecciona al menos una conversacion", "error");
     resetButton(btn);
     return;
   }
 
-  var techNotes = document.getElementById("techNotes").value.trim();
+  const techNotes = document.getElementById("techNotes").value.trim();
 
-  var payload = {
+  const payload = {
     ticket_id: TICKET_ID,
     subject: document.getElementById("ticketInfo").textContent,
     tech_notes: techNotes,
@@ -187,32 +202,32 @@ function analyzeTicket(client) {
     source: "doctor-flux-pro"
   };
 
-  // Record timestamp BEFORE sending — used to filter old notes
-  ANALYZE_STARTED_AT = new Date().toISOString();
+  ANALYZE_TIMESTAMP = new Date().getTime();
 
-  // Fire the webhook — we expect a quick "processing" response
+  showStatus("Enviando al webhook de Make...", "info");
+
   client.request.invokeTemplate("makeWebhook", {
     body: JSON.stringify(payload)
   }).then(function () {
-    // Webhook accepted — start polling for the AI note
-    showStatus("IA procesando... esperando nota de Doctor IA (0/" + MAX_POLLS + ")", "info");
+    showStatus("Webhook OK. Esperando nota de Doctor IA... 0s", "info");
+    btn.textContent = "Esperando IA...";
     startPolling(client);
   }).catch(function (err) {
-    // Even on timeout/error, Make may still be processing
-    var errMsg = "";
+    let errMsg = "desconocido";
     if (err && err.status) {
       errMsg = "HTTP " + err.status;
     } else if (err && err.message) {
       errMsg = err.message;
     }
-
-    // On any error, still start polling — Make is likely still processing
-    showStatus("Webhook enviado (respuesta: " + (errMsg || "ok") + "). Buscando nota...", "info");
+    showStatus("Webhook: " + errMsg + " — buscando nota igualmente...", "info");
+    btn.textContent = "Esperando IA...";
     startPolling(client);
   });
 }
 
-// --- Polling for new private notes ---
+/* ================================================================
+   POLLING — check conversations every 5s for new private note
+   ================================================================ */
 function startPolling(client) {
   POLL_COUNT = 0;
   stopPolling();
@@ -222,27 +237,25 @@ function startPolling(client) {
 
     if (POLL_COUNT > MAX_POLLS) {
       stopPolling();
-      showStatus("Timeout: la IA tardo demasiado. Revisa el ticket por si la nota aparece.", "error");
+      showStatus("Timeout (" + (MAX_POLLS * 5) + "s). Revisa el ticket.", "error");
       resetButton(document.getElementById("analyzeBtn"));
       return;
     }
 
-    var elapsed = POLL_COUNT * 5;
-    showStatus("IA procesando... " + elapsed + "s (" + POLL_COUNT + "/" + MAX_POLLS + ")", "info");
+    const elapsed = POLL_COUNT * 5;
+    showStatus("Esperando nota de Doctor IA... " + elapsed + "s", "info");
 
     client.request.invokeTemplate("getConversations", {
       context: { ticket_id: String(TICKET_ID), auth_token: AUTH_TOKEN }
     }).then(function (response) {
-      var convs = JSON.parse(response.response);
-      var newNote = findNewPrivateNote(convs);
+      const convs = JSON.parse(response.response);
+      const newNote = findNewDoctorNote(convs);
 
       if (newNote) {
         stopPolling();
         handleNewNote(newNote, client);
       }
-    }).catch(function () {
-      // Ignore poll errors, will retry next interval
-    });
+    }).catch(function () { /* retry next interval */ });
   }, POLL_INTERVAL);
 }
 
@@ -253,53 +266,48 @@ function stopPolling() {
   }
 }
 
-function findNewPrivateNote(convs) {
-  for (var i = convs.length - 1; i >= 0; i--) {
-    var conv = convs[i];
+function findNewDoctorNote(convs) {
+  let found = null;
 
-    // Must be private and not in initial set
-    if (!conv.private || INITIAL_NOTE_IDS[String(conv.id)]) continue;
+  for (let i = convs.length - 1; i >= 0; i--) {
+    const conv = convs[i];
 
-    // Must be created AFTER we clicked Analyze (with 60s tolerance for clock skew)
-    if (ANALYZE_STARTED_AT && conv.created_at) {
-      var noteTime = new Date(conv.created_at).getTime();
-      var startTime = new Date(ANALYZE_STARTED_AT).getTime() - 60000;
-      if (noteTime < startTime) continue;
-    }
+    if (!conv.private) { continue; }
+    if (INITIAL_NOTE_IDS[String(conv.id)]) { continue; }
 
-    // Must contain real content (not just a JSON status or empty)
-    var bodyText = conv.body_text || conv.body || "";
-    if (bodyText.length < 50) continue;
-    if (bodyText.indexOf("processing") >= 0 && bodyText.length < 200) continue;
+    const noteTime = new Date(conv.created_at).getTime();
+    if (ANALYZE_TIMESTAMP && noteTime < ANALYZE_TIMESTAMP - 120000) { continue; }
 
-    return conv;
+    const body = conv.body_text || conv.body || "";
+    if (body.length < 100) { continue; }
+    if (body.indexOf('"processing"') >= 0 && body.length < 200) { continue; }
+
+    found = conv;
+    break;
   }
-  return null;
+
+  return found;
 }
 
-// --- Handle the new AI note ---
+/* ================================================================
+   HANDLE NEW NOTE — display results
+   ================================================================ */
 function handleNewNote(note, client) {
   resetButton(document.getElementById("analyzeBtn"));
-  showStatus("Analisis completado", "success");
 
-  // The note body contains the AI analysis HTML
-  var noteHtml = note.body || "";
-  var noteText = note.body_text || stripHtml(noteHtml);
+  const noteHtml = note.body || "";
+  const noteText = note.body_text || stripHtml(noteHtml);
 
-  // Show results section
   document.getElementById("sectionResults").classList.remove("hidden");
 
-  // Try to extract structured data from the note
-  // Make scenario might embed JSON in an HTML comment: <!-- FLUX_JSON:{...} -->
-  var jsonData = extractEmbeddedJson(noteHtml);
+  const jsonData = extractEmbeddedJson(noteHtml);
 
-  if (jsonData) {
-    // Structured response — show recommendation, canned, articles
+  if (jsonData && jsonData.recommendation) {
+    showStatus("Analisis completado (datos estructurados)", "success");
     displayStructuredResults(jsonData, client);
   } else {
-    // Plain note — show the full note content as recommendation
-    var recEl = document.getElementById("recommendation");
-    recEl.innerHTML = noteHtml || escapeHtml(noteText);
+    showStatus("Analisis completado", "success");
+    document.getElementById("recommendation").innerHTML = noteHtml || escapeHtml(noteText);
     document.getElementById("resultCanned").classList.add("hidden");
     document.getElementById("resultArticles").classList.add("hidden");
   }
@@ -308,8 +316,8 @@ function handleNewNote(note, client) {
 }
 
 function extractEmbeddedJson(html) {
-  // Look for <!-- FLUX_JSON:{...} --> in the note HTML
-  var match = html.match(/<!--\s*FLUX_JSON:([\s\S]*?)-->/);
+  if (!html) { return null; }
+  const match = html.match(/<!--\s*FLUX_JSON:([\s\S]*?)-->/);
   if (match && match[1]) {
     try {
       return JSON.parse(match[1].trim());
@@ -320,15 +328,16 @@ function extractEmbeddedJson(html) {
   return null;
 }
 
-// --- Display structured results (if JSON embedded) ---
+/* ================================================================
+   DISPLAY STRUCTURED RESULTS
+   ================================================================ */
 function displayStructuredResults(result, client) {
-  var recEl = document.getElementById("recommendation");
-  recEl.textContent = result.recommendation || result.analysis || "";
+  document.getElementById("recommendation").textContent = result.recommendation || "";
 
   renderArticles(result);
 
   if (result.canned_responses && result.canned_responses.length > 0) {
-    var titles = result.canned_responses.map(function (cr) {
+    const titles = result.canned_responses.map(function (cr) {
       return typeof cr === "string" ? cr : (cr.title || "");
     }).filter(function (t) { return t.length > 0; });
 
@@ -343,9 +352,9 @@ function displayStructuredResults(result, client) {
 }
 
 function getSelectedConversations() {
-  var selected = [];
+  const selected = [];
   document.querySelectorAll("#convItems input[type=checkbox]:checked").forEach(function (cb) {
-    var idx = parseInt(cb.getAttribute("data-idx"), 10);
+    const idx = parseInt(cb.getAttribute("data-idx"), 10);
     if (CONVERSATIONS[idx]) {
       selected.push(CONVERSATIONS[idx]);
     }
@@ -354,24 +363,26 @@ function getSelectedConversations() {
 }
 
 function resetButton(btn) {
-  if (!btn) return;
+  if (!btn) { return; }
   btn.textContent = "Analizar con IA";
   btn.classList.remove("loading");
   btn.disabled = false;
 }
 
-// --- Fetch ALL canned responses from Freshdesk ---
+/* ================================================================
+   FETCH & MATCH CANNED RESPONSES
+   ================================================================ */
 function fetchAndMatchCanned(client, suggestedTitles) {
-  var block = document.getElementById("resultCanned");
-  var el = document.getElementById("cannedResponses");
+  const block = document.getElementById("resultCanned");
+  const el = document.getElementById("cannedResponses");
   block.classList.remove("hidden");
   el.innerHTML = '<div class="dlg-loading">Buscando respuestas en Freshdesk...</div>';
 
   fetchAllCannedPages(client, 1, []).then(function (allCanned) {
-    var matched = matchCannedByTitle(allCanned, suggestedTitles);
+    const matched = matchCannedByTitle(allCanned, suggestedTitles);
 
     if (matched.length === 0) {
-      el.innerHTML = '<div class="dlg-loading">No se encontraron canned responses coincidentes</div>';
+      el.innerHTML = '<div class="dlg-loading">No se encontraron canned responses</div>';
       document.getElementById("insertCloseBtn").classList.add("hidden");
       return;
     }
@@ -379,7 +390,7 @@ function fetchAndMatchCanned(client, suggestedTitles) {
     renderCannedWithCheckboxes(matched);
     document.getElementById("insertCloseBtn").classList.remove("hidden");
   }).catch(function () {
-    el.innerHTML = '<div class="dlg-loading" style="color:#d93025">Error al cargar canned responses</div>';
+    el.innerHTML = '<div class="dlg-loading" style="color:#d93025">Error al cargar canned</div>';
   });
 }
 
@@ -387,9 +398,8 @@ function fetchAllCannedPages(client, page, accumulated) {
   return client.request.invokeTemplate("getCannedResponses", {
     context: { page: String(page), auth_token: AUTH_TOKEN }
   }).then(function (response) {
-    var items = JSON.parse(response.response);
-    var all = accumulated.concat(items);
-
+    const items = JSON.parse(response.response);
+    const all = accumulated.concat(items);
     if (items.length >= 30) {
       return fetchAllCannedPages(client, page + 1, all);
     }
@@ -398,28 +408,28 @@ function fetchAllCannedPages(client, page, accumulated) {
 }
 
 function matchCannedByTitle(allCanned, suggestedTitles) {
-  var results = [];
-  var usedIds = {};
+  const results = [];
+  const usedIds = {};
 
   suggestedTitles.forEach(function (suggested) {
-    var lower = suggested.toLowerCase().trim();
-    var bestMatch = null;
-    var bestScore = 0;
+    const lower = suggested.toLowerCase().trim();
+    let bestMatch = null;
+    let bestScore = 0;
 
     allCanned.forEach(function (cr) {
-      if (usedIds[cr.id]) return;
-      var crTitle = (cr.title || "").toLowerCase().trim();
+      if (usedIds[cr.id]) { return; }
+      const crTitle = (cr.title || "").toLowerCase().trim();
+      let score = 0;
 
-      var score = 0;
       if (crTitle === lower) {
         score = 100;
       } else if (crTitle.indexOf(lower) >= 0 || lower.indexOf(crTitle) >= 0) {
         score = 80;
       } else {
-        var words = lower.split(/\s+/);
-        var hits = 0;
+        const words = lower.split(/\s+/);
+        let hits = 0;
         words.forEach(function (w) {
-          if (w.length > 2 && crTitle.indexOf(w) >= 0) hits++;
+          if (w.length > 2 && crTitle.indexOf(w) >= 0) { hits++; }
         });
         score = (words.length > 0) ? Math.round((hits / words.length) * 60) : 0;
       }
@@ -439,14 +449,12 @@ function matchCannedByTitle(allCanned, suggestedTitles) {
   return results;
 }
 
-// --- Render canned responses with checkboxes ---
 function renderCannedWithCheckboxes(cannedList) {
-  var el = document.getElementById("cannedResponses");
-  var parts = [];
+  const el = document.getElementById("cannedResponses");
+  const parts = [];
 
   cannedList.forEach(function (cr, idx) {
-    var preview = truncate(stripHtml(cr.content_html || cr.content || ""), 200);
-
+    const preview = truncate(stripHtml(cr.content_html || cr.content || ""), 200);
     parts.push(
       '<div class="dlg-canned-item dlg-canned-selectable">' +
       '<div class="dlg-canned-check">' +
@@ -455,32 +463,32 @@ function renderCannedWithCheckboxes(cannedList) {
       '<div class="dlg-canned-info">' +
       '<div class="dlg-canned-title">' + escapeHtml(cr.title) + '</div>' +
       '<div class="dlg-canned-body">' + escapeHtml(preview) + '</div>' +
-      '</div>' +
-      '</div>'
+      '</div></div>'
     );
   });
 
   el.innerHTML = parts.join("");
-
   el.setAttribute("data-matched", JSON.stringify(cannedList.map(function (cr) {
     return { id: cr.id, title: cr.title, content_html: cr.content_html || cr.content || "" };
   })));
 }
 
-// --- Insert selected canned and close ---
+/* ================================================================
+   INSERT SELECTED CANNED & CLOSE
+   ================================================================ */
 function insertAndClose(client) {
-  var el = document.getElementById("cannedResponses");
-  var matchedData = el.getAttribute("data-matched");
+  const el = document.getElementById("cannedResponses");
+  const matchedData = el.getAttribute("data-matched");
   if (!matchedData) {
     client.instance.close();
     return;
   }
 
-  var matched = JSON.parse(matchedData);
-  var selectedContents = [];
+  const matched = JSON.parse(matchedData);
+  const selectedContents = [];
 
   document.querySelectorAll("#cannedResponses input[type=checkbox]:checked").forEach(function (cb) {
-    var idx = parseInt(cb.getAttribute("data-canned-idx"), 10);
+    const idx = parseInt(cb.getAttribute("data-canned-idx"), 10);
     if (matched[idx] && matched[idx].content_html) {
       selectedContents.push(matched[idx].content_html);
     }
@@ -491,7 +499,7 @@ function insertAndClose(client) {
     return;
   }
 
-  var combined = selectedContents.join("<br><hr><br>");
+  const combined = selectedContents.join("<br><hr><br>");
 
   client.db.set("selected_canned", { content: combined }).then(function () {
     client.instance.close();
@@ -500,10 +508,12 @@ function insertAndClose(client) {
   });
 }
 
-// --- Render articles ---
+/* ================================================================
+   ARTICLES
+   ================================================================ */
 function renderArticles(result) {
-  var block = document.getElementById("resultArticles");
-  var el = document.getElementById("articles");
+  const block = document.getElementById("resultArticles");
+  const el = document.getElementById("articles");
 
   if (!result.articles || result.articles.length === 0) {
     block.classList.add("hidden");
@@ -511,48 +521,49 @@ function renderArticles(result) {
   }
 
   block.classList.remove("hidden");
-  var parts = [];
+  const parts = [];
   result.articles.forEach(function (art) {
-    var title = art.title || art.url || "Articulo";
-    var url = art.url || "#";
+    const title = art.title || art.url || "Articulo";
+    const url = art.url || "#";
     parts.push('<a class="dlg-article-item" href="' + escapeHtml(url) + '" target="_blank">' + escapeHtml(title) + '</a>');
   });
   el.innerHTML = parts.join("");
 }
 
-// --- Feedback ---
-function sendFeedback(client, type) {
-  var upBtn = document.getElementById("feedbackUp");
-  var downBtn = document.getElementById("feedbackDown");
-
+/* ================================================================
+   FEEDBACK
+   ================================================================ */
+function sendFeedback(type) {
+  const upBtn = document.getElementById("feedbackUp");
+  const downBtn = document.getElementById("feedbackDown");
   upBtn.classList.remove("selected");
   downBtn.classList.remove("selected");
-
   if (type === "positive") {
     upBtn.classList.add("selected");
   } else {
     downBtn.classList.add("selected");
   }
-
   document.getElementById("feedbackMsg").textContent = "Gracias por tu feedback";
 }
 
-// --- Utilities ---
+/* ================================================================
+   UTILITIES
+   ================================================================ */
 function showStatus(text, type) {
-  var el = document.getElementById("statusMsg");
+  const el = document.getElementById("statusMsg");
   el.textContent = text;
   el.className = "dlg-status" + (type ? " " + type : "");
 }
 
 function truncate(str, max) {
-  if (!str) return "";
+  if (!str) { return ""; }
   return str.length > max ? str.substring(0, max) + "..." : str;
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return "";
+  if (!dateStr) { return ""; }
   try {
-    var d = new Date(dateStr);
+    const d = new Date(dateStr);
     return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" }) +
       " " + d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
   } catch {
@@ -561,14 +572,14 @@ function formatDate(dateStr) {
 }
 
 function escapeHtml(str) {
-  if (!str) return "";
-  var div = document.createElement("div");
+  if (!str) { return ""; }
+  const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
 }
 
 function stripHtml(html) {
-  var tmp = document.createElement("div");
+  const tmp = document.createElement("div");
   tmp.innerHTML = html;
   return tmp.textContent || tmp.innerText || "";
 }
