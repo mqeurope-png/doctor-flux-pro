@@ -10,8 +10,9 @@ var AUTH_TOKEN = null;
 var INITIAL_NOTE_IDS = {};
 var POLL_TIMER = null;
 var POLL_COUNT = 0;
-var MAX_POLLS = 18;
+var MAX_POLLS = 24;
 var POLL_INTERVAL = 5000;
+var ANALYZE_STARTED_AT = null;
 
 app.initialized().then(function (client) {
   loadData(client);
@@ -186,12 +187,15 @@ function analyzeTicket(client) {
     source: "doctor-flux-pro"
   };
 
+  // Record timestamp BEFORE sending — used to filter old notes
+  ANALYZE_STARTED_AT = new Date().toISOString();
+
   // Fire the webhook — we expect a quick "processing" response
   client.request.invokeTemplate("makeWebhook", {
     body: JSON.stringify(payload)
   }).then(function () {
     // Webhook accepted — start polling for the AI note
-    showStatus("IA procesando... buscando nota nueva (0/" + MAX_POLLS + ")", "info");
+    showStatus("IA procesando... esperando nota de Doctor IA (0/" + MAX_POLLS + ")", "info");
     startPolling(client);
   }).catch(function (err) {
     // Even on timeout/error, Make may still be processing
@@ -202,14 +206,9 @@ function analyzeTicket(client) {
       errMsg = err.message;
     }
 
-    // If it's a timeout, still start polling — Make is likely still processing
-    if (errMsg.indexOf("504") >= 0 || errMsg.indexOf("408") >= 0 || errMsg.indexOf("Timeout") >= 0 || errMsg.indexOf("timeout") >= 0) {
-      showStatus("IA procesando (timeout en webhook, normal)... buscando nota nueva", "info");
-      startPolling(client);
-    } else {
-      showStatus("Error al enviar: " + errMsg, "error");
-      resetButton(btn);
-    }
+    // On any error, still start polling — Make is likely still processing
+    showStatus("Webhook enviado (respuesta: " + (errMsg || "ok") + "). Buscando nota...", "info");
+    startPolling(client);
   });
 }
 
@@ -228,7 +227,8 @@ function startPolling(client) {
       return;
     }
 
-    showStatus("IA procesando... buscando nota (" + POLL_COUNT + "/" + MAX_POLLS + ")", "info");
+    var elapsed = POLL_COUNT * 5;
+    showStatus("IA procesando... " + elapsed + "s (" + POLL_COUNT + "/" + MAX_POLLS + ")", "info");
 
     client.request.invokeTemplate("getConversations", {
       context: { ticket_id: String(TICKET_ID), auth_token: AUTH_TOKEN }
@@ -256,9 +256,23 @@ function stopPolling() {
 function findNewPrivateNote(convs) {
   for (var i = convs.length - 1; i >= 0; i--) {
     var conv = convs[i];
-    if (conv.private && !INITIAL_NOTE_IDS[String(conv.id)]) {
-      return conv;
+
+    // Must be private and not in initial set
+    if (!conv.private || INITIAL_NOTE_IDS[String(conv.id)]) continue;
+
+    // Must be created AFTER we clicked Analyze (with 60s tolerance for clock skew)
+    if (ANALYZE_STARTED_AT && conv.created_at) {
+      var noteTime = new Date(conv.created_at).getTime();
+      var startTime = new Date(ANALYZE_STARTED_AT).getTime() - 60000;
+      if (noteTime < startTime) continue;
     }
+
+    // Must contain real content (not just a JSON status or empty)
+    var bodyText = conv.body_text || conv.body || "";
+    if (bodyText.length < 50) continue;
+    if (bodyText.indexOf("processing") >= 0 && bodyText.length < 200) continue;
+
+    return conv;
   }
   return null;
 }
